@@ -8,4 +8,13 @@ pyproj
 geopandas
 earthengine-api
 pyfes
-git+https://github.com/kvos/CoastSat.git
+astropy
+imageio
+netCDF4
+requests
+shapely
+scikit-image
+scikit-learn
+xarray
+pyyaml
+gdal
