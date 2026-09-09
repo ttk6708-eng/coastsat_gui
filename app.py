@@ -88,6 +88,7 @@ DEFAULTS = {
     "slope_est": None,
     "slope_cis": None,
     "topo_profiles": None,
+    "_coverage_df": None,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -536,12 +537,78 @@ with tabs[1]:
 
     if st.session_state["inputs"] is not None:
         st.json(st.session_state["inputs"])
-        if st.button("📊 사용 가능한 영상 개수 확인", disabled=not COASTSAT_AVAILABLE):
-            try:
-                SDS_download.check_images_available(st.session_state["inputs"])
-                st.success("콘솔/터미널 로그에서 결과를 확인하세요.")
-            except Exception as e:
-                st.error(f"확인 실패: {e}")
+
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("📊 현재 설정한 기간 내 영상 개수 확인", disabled=not COASTSAT_AVAILABLE):
+                try:
+                    im_dict_T1, im_dict_T2 = SDS_download.check_images_available(
+                        st.session_state["inputs"]
+                    )
+                    rows = []
+                    for satname, im_list in im_dict_T1.items():
+                        rows.append({"위성": satname, "영상 개수": len(im_list)})
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+                except Exception as e:
+                    st.error(f"확인 실패: {e}")
+
+        with colB:
+            if st.button("📅 이 위치에서 조사 가능한 전체 기간 확인", disabled=not COASTSAT_AVAILABLE):
+                try:
+                    with st.spinner("전체 아카이브를 조회하는 중입니다... (최대 1분 정도 걸릴 수 있어요)"):
+                        wide_inputs = dict(st.session_state["inputs"])
+                        wide_inputs["dates"] = [
+                            "1982-01-01",
+                            datetime.now().strftime("%Y-%m-%d"),
+                        ]
+                        # 폴더 스캔으로 인한 오차를 피하려면 존재하지 않는 임시 사이트명을 사용
+                        wide_inputs["sitename"] = wide_inputs["sitename"] + "_coverage_check"
+                        im_dict_T1, _ = SDS_download.check_images_available(wide_inputs)
+
+                    coverage_rows = []
+                    for satname, im_list in im_dict_T1.items():
+                        if len(im_list) == 0:
+                            coverage_rows.append(
+                                {"위성": satname, "영상 개수": 0, "최초 촬영일": "-", "최근 촬영일": "-"}
+                            )
+                            continue
+                        ts_list = [
+                            im["properties"]["system:time_start"] / 1000 for im in im_list
+                        ]
+                        first_date = datetime.utcfromtimestamp(min(ts_list)).strftime("%Y-%m-%d")
+                        last_date = datetime.utcfromtimestamp(max(ts_list)).strftime("%Y-%m-%d")
+                        coverage_rows.append(
+                            {
+                                "위성": satname,
+                                "영상 개수": len(im_list),
+                                "최초 촬영일": first_date,
+                                "최근 촬영일": last_date,
+                            }
+                        )
+                    df_coverage = pd.DataFrame(coverage_rows)
+                    st.session_state["_coverage_df"] = df_coverage
+                    st.success("이 지역에서 조사 가능한 기간을 확인했습니다.")
+                except Exception as e:
+                    st.error(f"확인 실패: {e}")
+
+        if st.session_state.get("_coverage_df") is not None:
+            df_cov = st.session_state["_coverage_df"]
+            st.dataframe(df_cov, use_container_width=True)
+
+            valid = df_cov[df_cov["영상 개수"] > 0]
+            if not valid.empty:
+                earliest = min(valid["최초 촬영일"])
+                latest = max(valid["최근 촬영일"])
+                st.info(
+                    f"📌 이 위치는 **{earliest} ~ {latest}** 기간까지 위성영상 기반 해안선 조사가 "
+                    f"가능합니다 (선택한 위성들을 통틀어서). 위성마다 커버 기간이 다르니 표를 참고해 "
+                    f"'1️⃣ 초기 설정'의 날짜 범위를 조정하세요. "
+                    f"(참고: Landsat 5는 대략 1984년~2013년, Landsat 7은 1999년~현재, "
+                    f"Landsat 8은 2013년~현재, Landsat 9는 2021년~현재, Sentinel-2는 2015년~현재 "
+                    f"운영되었습니다 — 단, 실제 촬영 여부는 지역마다 다릅니다.)"
+                )
+            else:
+                st.warning("선택한 위성/영역에서는 사용 가능한 영상을 찾지 못했습니다. 폴리곤 위치나 위성 목록을 확인해주세요.")
 
 # ===========================================================================
 # 2. 영상 수집
