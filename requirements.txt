@@ -6,6 +6,6 @@ scipy
 pytz
 pyproj
 geopandas
-coastsat
 earthengine-api
 pyfes
+git+https://github.com/kvos/CoastSat.git
