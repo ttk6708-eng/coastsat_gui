@@ -1,0 +1,11 @@
+streamlit>=1.32
+numpy
+pandas
+matplotlib
+scipy
+pytz
+pyproj
+geopandas
+coastsat
+earthengine-api
+pyfes
