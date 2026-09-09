@@ -17,4 +17,4 @@ scikit-image
 scikit-learn
 xarray
 pyyaml
-gdal
+gdal==3.10.3
