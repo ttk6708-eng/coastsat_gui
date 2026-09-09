@@ -114,6 +114,61 @@ def require_coastsat():
     return True
 
 
+def generate_ee_login_url():
+    """사용자별 GEE 로그인 링크 생성 (Earth Engine '노트북 인증' 방식).
+
+    각 사용자가 자기 구글 계정으로 로그인하도록, earthengine-api가 원격/노트북
+    환경에서 쓰는 공식 OAuth 흐름(code.earthengine.google.com/client-auth)을
+    그대로 이용합니다. 이 함수는 요청 정보(nonce)만 생성하고, 실제 토큰 발급은
+    exchange_ee_auth_code()에서 사용자가 붙여넣은 코드로 처리합니다.
+    자격 정보는 세션별로만 메모리에 보관하며 디스크에 저장하지 않습니다.
+    """
+    import ee.oauth as oauth
+    import urllib.parse
+
+    nonces = ["request_id", "token_verifier", "client_verifier"]
+    request_info = oauth._nonce_table(*nonces)
+    auth_url = oauth.AUTH_URL_TEMPLATE.format(
+        scopes=urllib.parse.quote(" ".join(oauth.SCOPES)), **request_info
+    )
+    code_verifier = ":".join(request_info[k] for k in nonces)
+    return auth_url, code_verifier
+
+
+def exchange_ee_auth_code(auth_code: str, code_verifier: str):
+    """사용자가 붙여넣은 인증 코드를 구글 자격 증명(Credentials) 객체로 교환."""
+    import json as _json
+    import urllib.request as _urlreq
+    import ee.oauth as oauth
+    from google.oauth2.credentials import Credentials
+
+    request_id, verifier, client_verifier = code_verifier.split(":")
+    fetch_data = {"request_id": request_id, "client_verifier": client_verifier}
+    data = _json.dumps(fetch_data).encode()
+    headers = {"Content-Type": "application/json; charset=UTF-8"}
+    req = _urlreq.Request(oauth.FETCH_URL, data=data, headers=headers)
+    fetched_info = _json.loads(_urlreq.urlopen(req).read().decode())
+    if "error" in fetched_info:
+        raise RuntimeError(fetched_info["error"])
+
+    client_id = fetched_info["client_id"]
+    client_secret = fetched_info["client_secret"]
+    scopes = fetched_info.get("scopes") or oauth.SCOPES
+
+    refresh_token = oauth.request_token(
+        auth_code.strip(), verifier, client_id=client_id, client_secret=client_secret
+    )
+    credentials = Credentials(
+        None,
+        refresh_token=refresh_token,
+        token_uri=oauth.TOKEN_URI,
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=scopes,
+    )
+    return credentials
+
+
 def show_fig(fig):
     st.pyplot(fig, clear_figure=True)
 
@@ -301,8 +356,16 @@ with tabs[1]:
 
         auth_mode = st.radio(
             "GEE 인증 방식",
-            ["대화형 인증 (로컬 PC 실행용)", "서비스 계정 (GitHub/Streamlit Cloud 배포용)"],
-            help="서버에 배포하면 브라우저 로그인 창을 띄울 수 없으므로 서비스 계정 방식을 사용해야 합니다.",
+            [
+                "대화형 인증 (로컬 PC 실행용)",
+                "서비스 계정 (관리자 계정 공유, 배포용)",
+                "각자 로그인 (사용자별 Google 계정, 배포용)",
+            ],
+            help=(
+                "서버에 배포하면 브라우저 로그인 창을 띄울 수 없으므로 서비스 계정 또는 "
+                "각자 로그인 방식을 사용해야 합니다. 여러 사람이 함께 쓸 GUI라면 "
+                "'각자 로그인'을 쓰면 사용량이 관리자 계정 한 곳에 몰리지 않습니다."
+            ),
         )
 
         if auth_mode.startswith("대화형"):
@@ -312,7 +375,7 @@ with tabs[1]:
                     st.success("GEE 인증 완료")
                 except Exception as e:
                     st.error(f"인증 실패: {e}")
-        else:
+        elif auth_mode.startswith("서비스 계정"):
             st.caption(
                 "① GEE 서비스 계정을 만들고 키(JSON)를 발급받으세요: "
                 "https://developers.google.com/earth-engine/guides/service_account\n\n"
@@ -358,6 +421,39 @@ with tabs[1]:
                     st.success("서비스 계정으로 GEE 인증 완료")
                 except Exception as e:
                     st.error(f"인증 실패: {e}")
+        else:  # 각자 로그인 (사용자별 Google 계정)
+            st.caption(
+                "이 방식은 접속한 사람이 **본인 Google 계정**으로 로그인해서, "
+                "각자의 Earth Engine 할당량으로 영상을 받습니다. "
+                "단, 로그인하는 계정이 미리 Earth Engine 사용 승인을 받은 상태여야 합니다 "
+                "(https://code.earthengine.google.com/register 에서 신청). "
+                "여기서 발급받은 인증 정보는 서버 파일이 아니라 **이 브라우저 세션에만** 보관됩니다."
+            )
+
+            if st.button("1️⃣ 로그인 링크 만들기", disabled=not COASTSAT_AVAILABLE):
+                try:
+                    auth_url, code_verifier = generate_ee_login_url()
+                    st.session_state["_ee_code_verifier"] = code_verifier
+                    st.session_state["_ee_auth_url"] = auth_url
+                except Exception as e:
+                    st.error(f"로그인 링크 생성 실패: {e}")
+
+            if st.session_state.get("_ee_auth_url"):
+                st.markdown(f"👉 [여기를 눌러 Google 계정으로 로그인하기]({st.session_state['_ee_auth_url']})")
+                st.caption("로그인 후 화면에 나오는 인증 코드를 복사해서 아래에 붙여넣으세요.")
+                auth_code_input = st.text_input("2️⃣ 인증 코드 붙여넣기", key="_ee_auth_code_input")
+                if st.button("3️⃣ 로그인 완료 (이 코드로 인증)", disabled=not COASTSAT_AVAILABLE):
+                    try:
+                        import ee
+
+                        credentials = exchange_ee_auth_code(
+                            auth_code_input, st.session_state["_ee_code_verifier"]
+                        )
+                        ee.Initialize(credentials, project=project_name)
+                        st.session_state["_ee_user_credentials"] = credentials
+                        st.success("본인 Google 계정으로 GEE 인증 완료! (이 세션에서만 유지됩니다)")
+                    except Exception as e:
+                        st.error(f"인증 실패: {e}")
 
         sitename = st.text_input("사이트 이름 (sitename)", value="NARRA")
         filepath_data = st.text_input(
