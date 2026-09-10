@@ -89,6 +89,7 @@ DEFAULTS = {
     "slope_cis": None,
     "topo_profiles": None,
     "_coverage_df": None,
+    "_ee_authenticated": False,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -170,6 +171,17 @@ def exchange_ee_auth_code(auth_code: str, code_verifier: str):
     return credentials
 
 
+def check_ee_connected():
+    """GEE에 실제로 연결되어 있는지 가벼운 테스트 요청으로 확인."""
+    try:
+        import ee
+
+        ee.Number(1).getInfo()
+        return True
+    except Exception:
+        return False
+
+
 def show_fig(fig):
     st.pyplot(fig, clear_figure=True)
 
@@ -214,6 +226,22 @@ with st.sidebar:
     st.caption("위성영상 기반 해안선 변화 분석")
     if not COASTSAT_AVAILABLE:
         st.warning("coastsat 패키지 미설치 상태 (설정 입력은 가능)")
+
+    st.markdown("---")
+    st.markdown("### 🔐 GEE 인증 상태")
+    if st.session_state.get("_ee_authenticated"):
+        st.success("✅ 인증됨")
+    else:
+        st.error("❌ 미인증 — '1️⃣ 초기 설정'에서 인증해주세요")
+    if st.button("🔄 지금 연결 상태 확인", disabled=not COASTSAT_AVAILABLE, key="_sidebar_ee_check"):
+        with st.spinner("확인 중..."):
+            connected = check_ee_connected()
+        st.session_state["_ee_authenticated"] = connected
+        if connected:
+            st.success("연결 정상")
+        else:
+            st.error("연결 안 됨 — 재인증이 필요합니다")
+
     st.markdown("---")
     st.markdown("### 진행 상태")
     checklist = [
@@ -373,6 +401,7 @@ with tabs[1]:
             if st.button("🔐 GEE 인증 및 초기화 (대화형)", disabled=not COASTSAT_AVAILABLE):
                 try:
                     SDS_download.authenticate_and_initialize(project_name)
+                    st.session_state["_ee_authenticated"] = True
                     st.success("GEE 인증 완료")
                 except Exception as e:
                     st.error(f"인증 실패: {e}")
@@ -419,6 +448,7 @@ with tabs[1]:
                         )
 
                     ee.Initialize(credentials, project=project_name)
+                    st.session_state["_ee_authenticated"] = True
                     st.success("서비스 계정으로 GEE 인증 완료")
                 except Exception as e:
                     st.error(f"인증 실패: {e}")
@@ -452,6 +482,7 @@ with tabs[1]:
                         )
                         ee.Initialize(credentials, project=project_name)
                         st.session_state["_ee_user_credentials"] = credentials
+                        st.session_state["_ee_authenticated"] = True
                         st.success("본인 Google 계정으로 GEE 인증 완료! (이 세션에서만 유지됩니다)")
                     except Exception as e:
                         st.error(f"인증 실패: {e}")
@@ -604,7 +635,11 @@ with tabs[1]:
             df_cov = st.session_state["_coverage_df"]
             st.dataframe(df_cov, use_container_width=True)
 
-            valid = df_cov[df_cov["영상 개수"] > 0]
+            # "영상 개수"에 실패시 "-" 문자열이 섞여 있을 수 있으므로 숫자만 안전하게 비교
+            counts_numeric = pd.to_numeric(df_cov["영상 개수"], errors="coerce")
+            valid = df_cov[counts_numeric > 0]
+            failed = df_cov[df_cov["비고"] != ""]
+
             if not valid.empty:
                 earliest = min(valid["최초 촬영일"])
                 latest = max(valid["최근 촬영일"])
@@ -616,8 +651,19 @@ with tabs[1]:
                     f"Landsat 8은 2013년~현재, Landsat 9는 2021년~현재, Sentinel-2는 2015년~현재 "
                     f"운영되었습니다 — 단, 실제 촬영 여부는 지역마다 다릅니다.)"
                 )
-            else:
+            elif failed.empty:
                 st.warning("선택한 위성/영역에서는 사용 가능한 영상을 찾지 못했습니다. 폴리곤 위치나 위성 목록을 확인해주세요.")
+
+            if not failed.empty:
+                if valid.empty:
+                    st.error(
+                        "⚠️ 모든 위성 조회가 실패했습니다. 대부분 **GEE 인증이 안 되어 있거나 만료된 경우**입니다. "
+                        "위쪽 'GEE 인증 및 초기화' 버튼을 다시 눌러 인증부터 완료한 뒤 재시도해 주세요."
+                    )
+                with st.expander("🔍 실패한 위성의 전체 오류 메시지 보기"):
+                    for _, row in failed.iterrows():
+                        st.markdown(f"**{row['위성']}**")
+                        st.code(row["비고"], language=None)
 
 # ===========================================================================
 # 2. 영상 수집
