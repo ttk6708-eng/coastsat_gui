@@ -554,42 +554,51 @@ with tabs[1]:
 
         with colB:
             if st.button("📅 이 위치에서 조사 가능한 전체 기간 확인", disabled=not COASTSAT_AVAILABLE):
-                try:
-                    with st.spinner("전체 아카이브를 조회하는 중입니다... (최대 1분 정도 걸릴 수 있어요)"):
-                        wide_inputs = dict(st.session_state["inputs"])
-                        wide_inputs["dates"] = [
-                            "1982-01-01",
-                            datetime.now().strftime("%Y-%m-%d"),
-                        ]
-                        # 폴더 스캔으로 인한 오차를 피하려면 존재하지 않는 임시 사이트명을 사용
-                        wide_inputs["sitename"] = wide_inputs["sitename"] + "_coverage_check"
-                        im_dict_T1, _ = SDS_download.check_images_available(wide_inputs)
+                col_names_T1 = {
+                    "L5": "LANDSAT/LT05/C02/T1_TOA",
+                    "L7": "LANDSAT/LE07/C02/T1_TOA",
+                    "L8": "LANDSAT/LC08/C02/T1_TOA",
+                    "L9": "LANDSAT/LC09/C02/T1_TOA",
+                    "S2": "COPERNICUS/S2_HARMONIZED",
+                }
+                wide_dates = ["1982-01-01", datetime.now().strftime("%Y-%m-%d")]
+                polygon = st.session_state["inputs"]["polygon"]
+                sat_list_check = st.session_state["inputs"]["sat_list"]
 
-                    coverage_rows = []
-                    for satname, im_list in im_dict_T1.items():
+                coverage_rows = []
+                progress = st.progress(0.0, text="조회 시작...")
+                for idx, satname in enumerate(sat_list_check):
+                    progress.progress(idx / len(sat_list_check), text=f"{satname} 조회 중...")
+                    try:
+                        im_list = SDS_download.get_image_info(
+                            col_names_T1[satname], satname, polygon, wide_dates
+                        )
+                        if satname == "S2":
+                            im_list = SDS_download.filter_S2_collection(im_list)
                         if len(im_list) == 0:
                             coverage_rows.append(
-                                {"위성": satname, "영상 개수": 0, "최초 촬영일": "-", "최근 촬영일": "-"}
+                                {"위성": satname, "영상 개수": 0, "최초 촬영일": "-", "최근 촬영일": "-", "비고": ""}
                             )
-                            continue
-                        ts_list = [
-                            im["properties"]["system:time_start"] / 1000 for im in im_list
-                        ]
-                        first_date = datetime.utcfromtimestamp(min(ts_list)).strftime("%Y-%m-%d")
-                        last_date = datetime.utcfromtimestamp(max(ts_list)).strftime("%Y-%m-%d")
+                        else:
+                            ts_list = [im["properties"]["system:time_start"] / 1000 for im in im_list]
+                            first_date = datetime.utcfromtimestamp(min(ts_list)).strftime("%Y-%m-%d")
+                            last_date = datetime.utcfromtimestamp(max(ts_list)).strftime("%Y-%m-%d")
+                            coverage_rows.append(
+                                {
+                                    "위성": satname,
+                                    "영상 개수": len(im_list),
+                                    "최초 촬영일": first_date,
+                                    "최근 촬영일": last_date,
+                                    "비고": "",
+                                }
+                            )
+                    except Exception as e:
                         coverage_rows.append(
-                            {
-                                "위성": satname,
-                                "영상 개수": len(im_list),
-                                "최초 촬영일": first_date,
-                                "최근 촬영일": last_date,
-                            }
+                            {"위성": satname, "영상 개수": "-", "최초 촬영일": "-", "최근 촬영일": "-", "비고": f"조회 실패: {e}"}
                         )
-                    df_coverage = pd.DataFrame(coverage_rows)
-                    st.session_state["_coverage_df"] = df_coverage
-                    st.success("이 지역에서 조사 가능한 기간을 확인했습니다.")
-                except Exception as e:
-                    st.error(f"확인 실패: {e}")
+                progress.progress(1.0, text="완료")
+                st.session_state["_coverage_df"] = pd.DataFrame(coverage_rows)
+                st.success("이 지역에서 조사 가능한 기간을 확인했습니다. (일부 위성은 실패했을 수 있어요, 표의 '비고' 확인)")
 
         if st.session_state.get("_coverage_df") is not None:
             df_cov = st.session_state["_coverage_df"]

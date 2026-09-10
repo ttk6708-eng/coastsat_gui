@@ -702,7 +702,10 @@ def get_image_info(collection,satname,polygon,dates,**kwargs):
     im_list: list of ee.Image objects
         list with the info for the images
     """
-    while True:
+    max_retries = 5
+    attempt = 0
+    last_error = None
+    while attempt < max_retries:
         try:
             # get info about images
             ee_col = ee.ImageCollection(collection)
@@ -726,8 +729,15 @@ def get_image_info(collection,satname,polygon,dates,**kwargs):
             # convert to dict
             im_list = col.getInfo().get('features')
             break
-        except:
+        except Exception as e:
+            last_error = e
+            attempt += 1
             continue
+    else:
+        raise RuntimeError(
+            f"'{satname}' 영상 목록을 {max_retries}번 시도했지만 GEE에서 가져오지 못했습니다. "
+            f"(조회 범위가 너무 넓거나 GEE 응답이 불안정할 수 있습니다) 원본 오류: {last_error}"
+        )
     # remove very cloudy images (>95% cloud cover)
     im_list = remove_cloudy_images(im_list, satname)
     return im_list
