@@ -460,6 +460,21 @@ with tabs[1]:
                 "(https://code.earthengine.google.com/register 에서 신청). "
                 "여기서 발급받은 인증 정보는 서버 파일이 아니라 **이 브라우저 세션에만** 보관됩니다."
             )
+            st.warning(
+                "⚠️ 위쪽 'GEE 프로젝트 이름'은 **관리자 계정 소유의 프로젝트**라서 다른 사람이 "
+                "로그인하면 권한 오류가 납니다. 아래에 **본인 명의의 GCP 프로젝트 ID**를 따로 "
+                "입력해 주세요."
+            )
+            personal_project_name = st.text_input(
+                "본인 GCP 프로젝트 ID",
+                value="",
+                placeholder="예: ee-내구글계정이름",
+                help=(
+                    "Earth Engine 가입 시 자동으로 만들어진 프로젝트 ID입니다. "
+                    "https://code.earthengine.google.com 접속 후 좌측 상단 프로젝트 선택 메뉴에서 "
+                    "확인할 수 있습니다."
+                ),
+            )
 
             if st.button("1️⃣ 로그인 링크 만들기", disabled=not COASTSAT_AVAILABLE):
                 try:
@@ -474,18 +489,21 @@ with tabs[1]:
                 st.caption("로그인 후 화면에 나오는 인증 코드를 복사해서 아래에 붙여넣으세요.")
                 auth_code_input = st.text_input("2️⃣ 인증 코드 붙여넣기", key="_ee_auth_code_input")
                 if st.button("3️⃣ 로그인 완료 (이 코드로 인증)", disabled=not COASTSAT_AVAILABLE):
-                    try:
-                        import ee
+                    if not personal_project_name.strip():
+                        st.error("본인 GCP 프로젝트 ID를 먼저 입력해 주세요.")
+                    else:
+                        try:
+                            import ee
 
-                        credentials = exchange_ee_auth_code(
-                            auth_code_input, st.session_state["_ee_code_verifier"]
-                        )
-                        ee.Initialize(credentials, project=project_name)
-                        st.session_state["_ee_user_credentials"] = credentials
-                        st.session_state["_ee_authenticated"] = True
-                        st.success("본인 Google 계정으로 GEE 인증 완료! (이 세션에서만 유지됩니다)")
-                    except Exception as e:
-                        st.error(f"인증 실패: {e}")
+                            credentials = exchange_ee_auth_code(
+                                auth_code_input, st.session_state["_ee_code_verifier"]
+                            )
+                            ee.Initialize(credentials, project=personal_project_name.strip())
+                            st.session_state["_ee_user_credentials"] = credentials
+                            st.session_state["_ee_authenticated"] = True
+                            st.success("본인 Google 계정으로 GEE 인증 완료! (이 세션에서만 유지됩니다)")
+                        except Exception as e:
+                            st.error(f"인증 실패: {e}")
 
         sitename = st.text_input("사이트 이름 (sitename)", value="NARRA")
         filepath_data = st.text_input(
