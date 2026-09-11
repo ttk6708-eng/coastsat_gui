@@ -90,6 +90,8 @@ DEFAULTS = {
     "topo_profiles": None,
     "_coverage_df": None,
     "_ee_authenticated": False,
+    "_download_zip_bytes": None,
+    "_download_zip_name": None,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -777,6 +779,45 @@ with tabs[2]:
                 st.table(pd.DataFrame(summary.items(), columns=["위성", "영상 개수"]))
             except Exception:
                 pass
+
+            st.markdown("---")
+            st.subheader("💾 내 컴퓨터로 받기")
+            st.caption(
+                "여기 저장된 영상·데이터는 서버(클라우드) 안에 있는 것이라, 앱을 껐다 켜면 "
+                "사라질 수 있어요. 꼭 보관하고 싶은 결과는 압축해서 본인 PC로 받아두세요."
+            )
+            site_folder = os.path.join(
+                st.session_state["inputs"]["filepath"], st.session_state["inputs"]["sitename"]
+            )
+            if st.button("📦 이 사이트 폴더 전체를 zip으로 압축하기"):
+                try:
+                    import shutil
+
+                    if not os.path.isdir(site_folder):
+                        st.error(f"폴더를 찾을 수 없습니다: {site_folder}")
+                    else:
+                        zip_base = os.path.join("/tmp", st.session_state["inputs"]["sitename"])
+                        with st.spinner("압축하는 중..."):
+                            zip_path = shutil.make_archive(zip_base, "zip", site_folder)
+                        with open(zip_path, "rb") as f:
+                            st.session_state["_download_zip_bytes"] = f.read()
+                        st.session_state["_download_zip_name"] = (
+                            st.session_state["inputs"]["sitename"] + ".zip"
+                        )
+                        st.success(
+                            f"압축 완료 ({len(st.session_state['_download_zip_bytes']) / 1e6:.1f} MB). "
+                            "아래 버튼으로 받으세요."
+                        )
+                except Exception as e:
+                    st.error(f"압축 실패: {e}")
+
+            if st.session_state.get("_download_zip_bytes"):
+                st.download_button(
+                    "⬇️ 내 컴퓨터로 zip 다운로드",
+                    data=st.session_state["_download_zip_bytes"],
+                    file_name=st.session_state["_download_zip_name"],
+                    mime="application/zip",
+                )
 
 # ===========================================================================
 # 3. 해안선 일괄 탐지
