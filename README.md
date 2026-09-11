@@ -3,6 +3,28 @@
 `example.py`(CoastSat, Kilian Vos WRL 2018)의 전체 파이프라인(1~8단계)을
 브라우저에서 조작할 수 있는 한글 웹 GUI로 감싼 앱입니다.
 
+## 0. 가장 쉬운 실행 방법 (Windows, 원클릭)
+
+conda 없이, 파이썬만 설치되어 있으면 자기 PC에서 바로 GUI를 쓸 수 있습니다.
+
+1. [python.org](https://www.python.org/downloads/)에서 Python 3.12~3.15(64비트) 중 하나를 설치합니다
+   (설치 화면에서 **"Add python.exe to PATH"** 체크 필수, 최초 1회만).
+2. 이 저장소를 통째로 다운로드(또는 `git clone`)한 뒤, 폴더 안의 **`run_windows.bat`을 더블클릭**합니다.
+
+처음 실행할 때는 가상환경(`venv` 폴더) 생성 + 패키지 설치가 자동으로 진행되어 몇 분 정도 걸립니다.
+설치가 끝나면 브라우저가 자동으로 열리며 GUI가 나타납니다. 두 번째 실행부터는
+설치 과정 없이 바로 앱이 열립니다. Google Earth Engine 인증은 앱의
+"1️⃣ 초기 설정" 탭에서 **대화형 인증**을 선택하면 처음 한 번만 브라우저 로그인하면 됩니다.
+
+이 방식은 Streamlit Cloud 없이 각자 PC 자원(GEE 할당량 포함)으로 완전히 독립적으로 동작합니다.
+내부적으로 `venv` 생성 → GDAL은
+[cgohlke/geospatial-wheels](https://github.com/cgohlke/geospatial-wheels)의 비공식 Windows wheel로 설치
+(PyPI에는 Windows용 GDAL 빌드가 없어서) → 나머지는 `requirements-local.txt`로 pip 설치 →
+`streamlit run app.py` 순으로 자동 수행합니다.
+
+Python 3.12 미만 버전이거나 `run_windows.bat`이 실패하는 경우, 또는 Mac/Linux 사용자는
+아래 "1. 설치"의 conda 기반 수동 절차를 따르세요.
+
 ## 1. 설치
 
 CoastSat은 Google Earth Engine, geopandas, pyfes 등 무거운 지리공간 패키지가

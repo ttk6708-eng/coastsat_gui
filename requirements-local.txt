@@ -1,0 +1,24 @@
+# 로컬 실행용(run_windows.bat) 의존성 목록.
+# gdal은 PyPI에 Windows용 빌드가 없어서 run_windows.bat이
+# https://github.com/cgohlke/geospatial-wheels 의 wheel을 별도로 설치하므로 여기서는 제외함.
+# (Streamlit Cloud 배포용은 requirements.txt를 그대로 사용)
+streamlit>=1.32
+numpy
+pandas
+matplotlib
+scipy
+pytz
+pyproj
+geopandas
+earthengine-api
+google-auth
+pyfes
+astropy
+imageio
+netCDF4
+requests
+shapely
+scikit-image
+scikit-learn
+xarray
+pyyaml
