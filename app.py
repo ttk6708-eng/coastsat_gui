@@ -691,6 +691,48 @@ with tabs[2]:
     if st.session_state["inputs"] is None:
         st.info("먼저 1단계에서 입력값을 확정해 주세요.")
     else:
+        with st.expander("📁 저장 폴더 설정 (본인 폴더 지정)", expanded=True):
+            st.caption(
+                "여러 사람이 이 앱을 함께 쓸 경우, 서로 같은 폴더에 저장하면 데이터가 "
+                "섞이거나 덮어써질 수 있어요. 본인만의 폴더명을 지정해 두세요."
+            )
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                custom_filepath = st.text_input(
+                    "데이터 저장 경로",
+                    value=st.session_state["inputs"]["filepath"],
+                    key="_custom_filepath",
+                )
+                custom_sitename = st.text_input(
+                    "사이트 이름 (폴더명)",
+                    value=st.session_state["inputs"]["sitename"],
+                    key="_custom_sitename",
+                )
+            with c2:
+                st.write("")
+                st.write("")
+                if st.button("🔀 겹치지 않는 이름 자동 생성"):
+                    import uuid
+
+                    unique_suffix = uuid.uuid4().hex[:6]
+                    st.session_state["_custom_sitename"] = (
+                        f"{st.session_state['inputs']['sitename']}_{unique_suffix}"
+                    )
+                    st.rerun()
+
+            if st.button("✅ 이 폴더로 저장하기"):
+                updated_inputs = dict(st.session_state["inputs"])
+                updated_inputs["filepath"] = custom_filepath
+                updated_inputs["sitename"] = custom_sitename
+                st.session_state["inputs"] = updated_inputs
+                st.success("저장 폴더가 반영되었습니다.")
+
+            resolved_path = os.path.join(
+                st.session_state["inputs"]["filepath"], st.session_state["inputs"]["sitename"]
+            )
+            st.code(resolved_path, language=None)
+            st.caption("👆 실제로 영상과 결과가 저장될 전체 경로입니다.")
+
         colA, colB = st.columns(2)
         with colA:
             skip_l7_slc = st.checkbox(
