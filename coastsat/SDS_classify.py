@@ -106,8 +106,9 @@ def label_images(metadata,settings):
     # initialize figure
     fig,ax = plt.subplots(1,1,figsize=[17,10], tight_layout=True,sharex=True,
                           sharey=True)
-    mng = plt.get_current_fig_manager()                                         
-    mng.window.showMaximized()
+    mng = plt.get_current_fig_manager()
+    if hasattr(mng, 'window') and hasattr(mng.window, 'showMaximized'):
+        mng.window.showMaximized()
 
     # loop through satellites
     for satname in metadata.keys():

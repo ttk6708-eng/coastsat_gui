@@ -802,7 +802,8 @@ def show_detection(im_ms, cloud_mask, im_labels, shoreline,image_epsg, georef,
         fig = plt.figure()
         fig.set_size_inches([18, 9])
         mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
+        if hasattr(mng, 'window') and hasattr(mng.window, 'showMaximized'):
+            mng.window.showMaximized()
 
         # according to the image shape, decide whether it is better to have the images
         # in vertical subplots or horizontal subplots
@@ -1017,7 +1018,8 @@ def adjust_detection(im_ms, cloud_mask, im_nodata, im_labels, im_ref_buffer, ima
         fig = plt.figure()
         fig.set_size_inches([18, 9])
         mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
+        if hasattr(mng, 'window') and hasattr(mng.window, 'showMaximized'):
+            mng.window.showMaximized()
         gs = gridspec.GridSpec(2, 3, height_ratios=[4,1])
         gs.update(bottom=0.05, top=0.95, left=0.03, right=0.97)
         ax1 = fig.add_subplot(gs[0,0])

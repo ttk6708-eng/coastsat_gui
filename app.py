@@ -21,6 +21,7 @@ import os
 import io
 import json
 import pickle
+import tempfile
 import warnings
 from datetime import datetime, timedelta
 
@@ -428,7 +429,7 @@ with tabs[1]:
                     key_data = None
                     if sa_key_file is not None:
                         key_bytes = sa_key_file.getvalue()
-                        key_path = "/tmp/gee_service_account.json"
+                        key_path = os.path.join(tempfile.gettempdir(), "gee_service_account.json")
                         with open(key_path, "wb") as f:
                             f.write(key_bytes)
                         key_json = json.loads(key_bytes)
@@ -437,7 +438,7 @@ with tabs[1]:
                     elif hasattr(st, "secrets") and "gee_service_account_key" in st.secrets:
                         # Streamlit Cloud Secrets에 JSON 문자열로 등록해둔 경우
                         key_json_str = st.secrets["gee_service_account_key"]
-                        key_path = "/tmp/gee_service_account.json"
+                        key_path = os.path.join(tempfile.gettempdir(), "gee_service_account.json")
                         with open(key_path, "w") as f:
                             f.write(key_json_str)
                         key_json = json.loads(key_json_str)
@@ -540,7 +541,7 @@ with tabs[1]:
         elif polygon_mode == "GeoJSON 파일 업로드":
             up = st.file_uploader("polygon.geojson", type=["geojson", "json"])
             if up is not None:
-                tmp_path = os.path.join("/tmp", up.name)
+                tmp_path = os.path.join(tempfile.gettempdir(), up.name)
                 with open(tmp_path, "wb") as f:
                     f.write(up.getbuffer())
                 st.session_state["_polygon_geojson_path"] = tmp_path
@@ -548,7 +549,7 @@ with tabs[1]:
         else:
             up = st.file_uploader("polygon.kml", type=["kml"])
             if up is not None:
-                tmp_path = os.path.join("/tmp", up.name)
+                tmp_path = os.path.join(tempfile.gettempdir(), up.name)
                 with open(tmp_path, "wb") as f:
                     f.write(up.getbuffer())
                 st.session_state["_polygon_kml_path"] = tmp_path
@@ -796,7 +797,7 @@ with tabs[2]:
                     if not os.path.isdir(site_folder):
                         st.error(f"폴더를 찾을 수 없습니다: {site_folder}")
                     else:
-                        zip_base = os.path.join("/tmp", st.session_state["inputs"]["sitename"])
+                        zip_base = os.path.join(tempfile.gettempdir(), st.session_state["inputs"]["sitename"])
                         with st.spinner("압축하는 중..."):
                             zip_path = shutil.make_archive(zip_base, "zip", site_folder)
                         with open(zip_path, "rb") as f:
@@ -958,7 +959,7 @@ with tabs[4]:
             up = st.file_uploader("transects.geojson", type=["geojson", "json"], key="transect_upload")
             if up is not None and st.button("트랜섹트 불러오기", disabled=not COASTSAT_AVAILABLE):
                 try:
-                    tmp_path = os.path.join("/tmp", up.name)
+                    tmp_path = os.path.join(tempfile.gettempdir(), up.name)
                     with open(tmp_path, "wb") as f:
                         f.write(up.getbuffer())
                     transects = SDS_tools.transects_from_geojson(tmp_path)

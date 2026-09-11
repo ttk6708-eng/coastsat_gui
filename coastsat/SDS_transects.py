@@ -108,8 +108,9 @@ def draw_transects(output, settings):
         ax1.plot(sl[:, 0], sl[:, 1], '.', markersize=3, label=date.strftime('%d-%m-%Y'))
 #    ax1.legend()
     fig1.set_tight_layout(True)
-    mng = plt.get_current_fig_manager()                                         
-    mng.window.showMaximized()
+    mng = plt.get_current_fig_manager()
+    if hasattr(mng, 'window') and hasattr(mng.window, 'showMaximized'):
+        mng.window.showMaximized()
     ax1.set_title('Click two points to define each transect (first point is the ' +
                   'origin of the transect and is landwards, second point seawards).\n'+
                   'When all transects have been defined, click on <ENTER>', fontsize=16)
