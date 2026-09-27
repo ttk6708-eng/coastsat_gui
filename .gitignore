@@ -7,3 +7,14 @@ data/
 !classification/models/*.pkl
 .streamlit/secrets.toml
 .DS_Store
+env/
+build/
+build-native/
+dist/
+*.spec
+desktop-state/
+models/
+assets/fonts/*.ttf
+*.exe
+*.zip
+*.tar.gz
