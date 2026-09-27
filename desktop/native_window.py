@@ -247,7 +247,11 @@ class MainWindow(QMainWindow):
         self.edit_bands_button = QPushButton('밴드·보정 설정 수정'); self.edit_bands_button.clicked.connect(self.edit_bands); advanced.addWidget(self.edit_bands_button)
         self.apply_all_button = QPushButton('현재 설정을 전체 영상에 적용'); self.apply_all_button.clicked.connect(self.apply_all); advanced.addWidget(self.apply_all_button)
         help_button = QPushButton('설정 상세설명'); help_button.clicked.connect(lambda:self.show_settings_help()); advanced.addWidget(help_button)
+        self.reference_button=QPushButton('공통 영역 기준 영상 선택');self.reference_button.clicked.connect(self.choose_quality_reference);advanced.addWidget(self.reference_button)
+        self.reference_clear=QPushButton('공통 영역 기준 해제');self.reference_clear.clicked.connect(self.clear_quality_reference);advanced.addWidget(self.reference_clear)
+        self.reference_note=QLabel('공통 영역 기준 없음');self.reference_note.setWordWrap(True);advanced.addWidget(self.reference_note)
         self.preview_button = QPushButton('미리보기 갱신'); self.preview_button.setObjectName('primary'); self.preview_button.clicked.connect(self.request_preview); layout.addWidget(self.preview_button)
+        self.quality_button=QPushButton('구름·결측 단계별 확인');self.quality_button.clicked.connect(self.show_quality);layout.addWidget(self.quality_button)
         hint = QLabel('설정을 바꾼 뒤 눌러주세요.'); hint.setObjectName('muted'); layout.addWidget(hint)
         ai = self.fold(layout,'AI 구름·그림자 비교 · 시험 기능')
         ai_note = QLabel('기존 판정과 AI 판정을 비교합니다.\n일반 저장 결과에는 적용하지 않습니다.'); ai_note.setWordWrap(True); ai.addWidget(ai_note)
@@ -498,6 +502,10 @@ class MainWindow(QMainWindow):
         self.save_all_button.setVisible(len(self.entries) > 1)
         self.save_all_button.setEnabled(idle and bool(self.entries)); self.stop_button.setEnabled(not idle)
         base = entry['base'] if entry else {}
+        self.reference_button.setEnabled(idle and entry is not None)
+        self.reference_clear.setEnabled(idle and bool(base.get('quality_reference')))
+        self.reference_note.setText('기준: '+Path(base['quality_reference']).name if base.get('quality_reference') else '공통 영역 기준 없음')
+        self.quality_button.setEnabled(idle and bool(entry and entry.get('preview',{} ) and entry['preview'].get('quality')))
         self.threshold.setEnabled(idle and bool(base.get('probability')))
         self.cloud.setEnabled(idle and bool(base.get('qa') or base.get('probability')))
         self.pan.setEnabled(idle and bool(base.get('pan')))
@@ -578,6 +586,34 @@ class MainWindow(QMainWindow):
                 self.start_job({'mode':'preview','scene':scene,'signature':scene_signature(scene),'preview_context':'native'},entry)
             except Exception as error:
                 self.show_error(error)
+
+    def choose_quality_reference(self):
+        entry=self.selected_entry()
+        if not entry or self.job:return
+        path,_=QFileDialog.getOpenFileName(self,'같은 지역의 기준 ms 영상 선택',str(Path(entry['base']['bands'][0]['path']).parent),'GeoTIFF (*.tif *.tiff)')
+        if not path:return
+        try:
+            from desktop.quality import reference_region
+            from desktop.processing import open_raster
+            scene=self.configured(entry);scene['quality_reference']=path
+            reference_region(scene,open_raster((scene.get('pan') or scene['bands'][0])['path']))
+            entry['base']['quality_reference']=path;self.update_enabled();self.update_stale()
+        except Exception as error:self.show_error(error)
+
+    def clear_quality_reference(self):
+        entry=self.selected_entry()
+        if entry and not self.job:
+            entry['base'].pop('quality_reference',None);self.update_enabled();self.update_stale()
+
+    def show_quality(self):
+        entry=self.selected_entry()
+        if not entry or not entry.get('preview'):return
+        try:
+            if scene_signature(self.configured(entry))!=entry['preview']['signature']:
+                raise ValueError('설정 또는 기준 영상이 바뀌었습니다. 미리보기를 먼저 갱신하세요.')
+            from desktop.native_quality import QualityDialog
+            QualityDialog(entry['preview'],self).exec()
+        except Exception as error:self.show_error(error)
 
     def request_inspection(self):
         entry = self.selected_entry()

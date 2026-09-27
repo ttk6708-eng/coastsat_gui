@@ -213,6 +213,8 @@ def process_scene(scene, output_root, progress=None):
         if progress:
             progress(stage, state, message)
     computed = compute_scene(scene, progress=emit)
+    from desktop.quality import quality_report
+    quality, _ = quality_report(scene,computed)
     data, target = computed['data'], computed['target']
     nodata, cloud, known = (computed[key] for key in ('nodata', 'cloud', 'known'))
     invalid, warnings = computed['invalid'], computed['warnings']
@@ -243,6 +245,7 @@ def process_scene(scene, output_root, progress=None):
                   'radiometry': 'Explicit band scale/offset or GeoTIFF metadata applied; no atmospheric correction',
                   'pansharpened': bool(pan), 'mask_bands': ['excluded', 'cloud (255 unknown)', 'nodata']}
         report['display_ranges'] = ranges
+        report['quality'] = quality
         report['steps'] = steps + [{'stage':'결과 저장','state':'완료','message':str(folder),
                                   'time':datetime.now(timezone.utc).isoformat()}]
         (folder / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
