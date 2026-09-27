@@ -81,3 +81,15 @@ Noto Sans KR을 포함해 시스템 글꼴 구성에 의존하지 않게 했습�
   the control scene with no probability zeros retained identical cloud and valid percentages.
 - Input TIFF hashes were unchanged. A correction-status Qt screenshot was inspected.
 - Local input imagery, sample reports, machine-specific migration helper, runtimes and models are not published to GitHub.
+# 지역·촬영 범위 점검 검증 (2026-09-27)
+
+- 기존 기능을 포함한 native 자동 시험 41개 통과. 화면 상태 표시 변경 후 신규 시험 5개 재통과.
+
+- 파일 목록 생성 시 래스터 미열기, 누락/중복/손상 입력, 서로 다른 지역 차단,
+  동일/부분/포함/비중첩/회전 격자의 다각형 면적 계산, Qt 기준 선택을 검증합니다.
+- 실제 영상은 맹방과 원평 각 3장만 헤더 점검했습니다. 목록은 각각 340/341개입니다.
+- 원평 2022-12-30 표본은 2020-01-05 기준 범위의 38.89%와 겹칩니다.
+  선택 영상 자체의 겹침 비율은 99.64%입니다. 구름·결측을 반영한 수치가 아닙니다.
+- 표본 6개 장면의 24개 원본 파일은 점검 전후 SHA-256이 같았습니다.
+- 실제 Qt 창을 두 크기로 렌더링하여 확인합니다. 전체 영상 일괄 전처리와 위치 보정은 수행하지 않았습니다.
+

@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
             action = QAction(self.style().standardIcon(icon),text,self)
             action.triggered.connect(slot); menu.addAction(action); import_menu.addAction(action); self.import_actions.append(action)
         toolbar.addSeparator()
+        toolbar.addAction('지역·촬영 범위 점검',self.show_site_review)
         self.history_action = self.log_dock.toggleViewAction(); self.history_action.setText('처리 기록 보기'); toolbar.addAction(self.history_action)
         toolbar.addAction('사용 안내',self.show_help)
         menu.addSeparator(); close_action = menu.addAction('종료'); close_action.triggered.connect(self.close)
@@ -134,6 +135,11 @@ class MainWindow(QMainWindow):
         settings_help = help_menu.addAction('전처리 설정 상세설명'); settings_help.triggered.connect(lambda: self.show_settings_help())
         about = help_menu.addAction('프로그램 정보'); about.triggered.connect(lambda:QMessageBox.information(self,'CoastSat Studio',
             '위성영상 전처리 · 독립 데스크톱 시험판\nCoastSat: Kilian Vos 및 기여자 · GPL-3.0\n화면: Qt / PySide6 · 전처리: GDAL / CoastSat\n실제 사용자 영상과 Google 수집은 추가 검증이 필요합니다.'))
+
+    def show_site_review(self):
+        from desktop.native_site_review import SiteReviewDialog
+        dialog = SiteReviewDialog(self)
+        dialog.exec()
 
     def dock(self,title,widget,area):
         dock = QDockWidget(title,self)
