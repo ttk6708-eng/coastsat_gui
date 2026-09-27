@@ -7,3 +7,12 @@ data/
 !classification/models/*.pkl
 .streamlit/secrets.toml
 .DS_Store
+env/
+build/
+build-native/
+dist/
+*.spec
+desktop-state/
+*.exe
+*.zip
+*.tar.gz
