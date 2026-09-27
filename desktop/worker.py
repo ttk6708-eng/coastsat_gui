@@ -29,7 +29,16 @@ def run(spec_path):
     save(status, {'state': 'running', 'message': '작업 준비 중', 'progress': 0})
     try:
         mode = spec['mode']
-        if mode == 'inspect':
+        if mode in ('ai_download', 'ai_preview'):
+            from desktop.ai_models import model_dir, download_models
+            def ai_progress(message, fraction):
+                save(status, {'state':'running','message':message,'progress':fraction})
+            if mode == 'ai_download':
+                result = {'ai_models':download_models(model_dir(), ai_progress)}
+            else:
+                from desktop.ai_preview import compare_ai
+                result = {'ai_comparison':compare_ai(spec['scene'], root/'ai-comparison', model_dir(), ai_progress)}
+        elif mode == 'inspect':
             from desktop.input_review import review_input
             save(status, {'state':'running','message':'입력 밴드·좌표·보정값 점검 및 구름 제거 전 RGB 생성 중','progress':0})
             result = {'input_review':review_input(spec['scene'],root/'input-review')}

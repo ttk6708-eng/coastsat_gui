@@ -24,3 +24,12 @@ retained with their installed packages. See requirements-native.lock.txt for ver
 PyInstaller's bootloader exception permits distribution of the frozen launcher.
 
 No user imagery, account credentials, service-account keys or authentication tokens are included.
+
+AI optional edition: OmniCloudMask 1.7.1 (Nick Wright / DPIRD, MIT), weights from
+https://huggingface.co/NickWright/OmniCloudMask (MIT, revision c9a4fb88188709127aa25cfe51ae7fd41b0132f8).
+Weight hashes are pinned in desktop/ai_models.py. OmniCloudMask license is included under licenses/.
+PyTorch / torchvision (BSD), timm (Apache-2.0), segmentation-models-pytorch (MIT),
+safetensors, rasterio and their dependency notices remain in env/Lib/site-packages package metadata.
+Upstream: https://github.com/DPIRD-DMA/OmniCloudMask, https://github.com/pytorch/pytorch,
+https://github.com/pytorch/vision, https://github.com/huggingface/pytorch-image-models,
+https://github.com/qubvel-org/segmentation_models.pytorch. See requirements-ai.lock.txt.

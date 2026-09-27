@@ -46,7 +46,8 @@ class InputReviewTests(unittest.TestCase):
         self.assertEqual(band['raw_range'],[2.,256.])
         np.testing.assert_allclose(band['calibrated_range'],[-.08,2.46])
         self.assertEqual(band['processing_level'],'미확인')
-        self.assertFalse(result['capabilities']['ai_implemented'])
+        self.assertTrue(result['capabilities']['ai_implemented'])
+        self.assertFalse(result['capabilities']['ai_applied'])
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),original)
         self.assertTrue((self.root/'review/input-review.json').exists())
 

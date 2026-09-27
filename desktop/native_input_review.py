@@ -14,7 +14,7 @@ class InputReviewDialog(QDialog):
         self.setWindowTitle('1단계 · 입력 영상 점검과 미리보기')
         self.resize(1120,780); self.setMinimumSize(800,620)
         layout = QVBoxLayout(self)
-        title = QLabel('1단계  입력 점검  →  다음 단계: AI 구름·그림자 판정 (아직 미적용)')
+        title = QLabel('1단계  입력 점검  →  선택 기능: AI 비교는 메인 화면에서 실행')
         title.setObjectName('sectionTitle'); title.setWordWrap(True); layout.addWidget(title)
         name = QLabel(report['name']); name.setTextFormat(Qt.TextFormat.PlainText); layout.addWidget(name)
         self.tabs = QTabWidget(); layout.addWidget(self.tabs,1)
@@ -32,7 +32,7 @@ class InputReviewDialog(QDialog):
             '· 구름 확률 조절: '+('확률 밴드 지정됨' if c['cloud_probability'] else '확률 자료 없음'),
             '· 근적외선(NIR): '+('지정됨' if c['nir_assigned'] else '미지정'),
             '· PAN 선명화: '+('선택됨 (지원 위성·밴드 확인 필요)' if c['pan_selected'] else '선택하지 않음'),
-            '· AI 구름 판정: 다음 단계에서 추가 예정','', '확인할 사항']
+            '· AI 구름 판정: 다음 단계에서 선택형 비교 실행 (이 점검에는 미적용)','', '확인할 사항']
         lines += [f'• {message}' for message in report['issues']]
         if report.get('preview_error'): lines += ['', '미리보기 생성 불가: '+report['preview_error']]
         lines += ['', '이 점검은 밴드 선택의 과학적 타당성을 자동 보증하지 않습니다.',

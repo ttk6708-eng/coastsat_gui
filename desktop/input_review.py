@@ -84,7 +84,7 @@ def review_input(scene, folder):
             'capabilities':{'basic_cloud':bool(scene.get('qa') or scene.get('probability')),
                 'cloud_probability':bool(scene.get('probability')),
                 'nir_assigned':len(scene['bands'])==5,
-                'pan_selected':bool(scene.get('pan')),'ai_implemented':False},
+                'pan_selected':bool(scene.get('pan')),'ai_implemented':True,'ai_applied':False},
             'statistics_note':'각 밴드의 최대 256×256 표본을 최근접 방식으로 읽었습니다. 표본 범위·결측 비율이며 전체 통계가 아닙니다.'}
     # Reuse the actual alignment/calibration implementation, but only build a small
     # RGB display grid. No cloud mask, sharpening or atmospheric correction here.

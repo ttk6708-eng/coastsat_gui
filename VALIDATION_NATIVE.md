@@ -59,3 +59,16 @@ Noto Sans KR을 포함해 시스템 글꼴 구성에 의존하지 않게 했습�
 - Synthetic three-scene preview and sequential export passed; 1440x900 and 1120x720 widget renders inspected. Small windows retain a scrollable settings panel.
 - Windows transient status replacement conflicts now retry for at most 1.1 seconds; persistent failures still raise.
 - Real satellite images and real Google authentication were not exercised in this change.
+
+## 2026-09-27 AI comparison validation
+- 31 native tests passed (including six new AI tests): band order, unmasked inference input,
+  nodata exclusion, georeferencing, disagreement denominator, unknown QA, RGB fallback,
+  output validation, input changes, model corruption and display-only opacity.
+- Real OmniCloudMask 1.7.1 / v4 two-model CPU inference passed on synthetic 192x256 imagery through
+  the actual worker and Qt comparison window. A second inference passed with socket.connect blocked.
+- Synthetic imagery only: no real coastline accuracy improvement is claimed. Google login was not exercised.
+- Model files: 57,805,992 bytes, pinned revision and verified SHA-256. No pickle model loading.
+- Font source download URL and SHA-256 were verified. GitHub source omits the large font binary;
+  download_font.py restores the exact redistributable font, and build_native.py calls it automatically.
+- The AI distribution's EXE launch and packaged real-model worker were also checked separately;
+  the bundled model path is used, not a developer cache. Native tests are repeated in that runtime.

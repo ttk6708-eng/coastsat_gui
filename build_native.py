@@ -9,6 +9,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--runtime',required=True)
     parser.add_argument('--output',required=True)
+    parser.add_argument('--models',help='Optional verified OmniCloudMask v4 folder for an offline AI edition')
     args = parser.parse_args()
     from download_font import ensure_font
     ensure_font()
@@ -39,6 +40,13 @@ def main():
         shutil.copy2(source/name,out/name)
     if (runtime/'Lib/site-packages/omnicloudmask').is_dir():
         shutil.copy2(source/'requirements-ai.lock.txt',out/'requirements-ai.lock.txt')
+    if args.models:
+        from desktop.ai_models import verify_models, MODELS
+        model_source = Path(args.models).resolve()
+        verify_models(model_source)
+        destination = out/'models/omnicloudmask-v4'; destination.mkdir(parents=True)
+        for name, *_ in MODELS:
+            shutil.copy2(model_source/name,destination/name)
     print(out)
 
 

@@ -243,6 +243,10 @@ class MainWindow(QMainWindow):
         help_button = QPushButton('설정 상세설명'); help_button.clicked.connect(lambda:self.show_settings_help()); advanced.addWidget(help_button)
         self.preview_button = QPushButton('미리보기 갱신'); self.preview_button.setObjectName('primary'); self.preview_button.clicked.connect(self.request_preview); layout.addWidget(self.preview_button)
         hint = QLabel('설정을 바꾼 뒤 눌러주세요.'); hint.setObjectName('muted'); layout.addWidget(hint)
+        ai = self.fold(layout,'AI 구름·그림자 비교 · 시험 기능')
+        ai_note = QLabel('기존 판정과 AI 판정을 비교합니다.\n일반 저장 결과에는 적용하지 않습니다.'); ai_note.setWordWrap(True); ai.addWidget(ai_note)
+        self.ai_button = QPushButton('AI 비교 미리보기'); self.ai_button.clicked.connect(self.request_ai_preview); ai.addWidget(self.ai_button)
+        self.ai_download_button = QPushButton('AI 모델 받기 · 약 58MB'); self.ai_download_button.clicked.connect(self.request_ai_download); ai.addWidget(self.ai_download_button)
         heading('④ 결과 저장')
         destination = self.fold(layout,'저장 위치 확인·변경')
         self.output = QLineEdit(str(self.root/'results')); self.output.setToolTip(self.output.text()); destination.addWidget(self.output)
@@ -478,6 +482,11 @@ class MainWindow(QMainWindow):
         self.move_down.setEnabled(idle and 0 <= self.scenes.currentRow() < len(self.entries)-1)
         self.edit_bands_button.setEnabled(idle and entry is not None and not entry['base'].get('coastsat'))
         self.inspect_button.setEnabled(idle and entry is not None)
+        from desktop.ai_models import runtime_available
+        available = runtime_available()
+        self.ai_button.setEnabled(idle and entry is not None)
+        self.ai_download_button.setEnabled(idle and available)
+        self.ai_button.setToolTip('모델 준비 후 로컬 CPU로 실행합니다.' if available else 'AI 실행 환경을 포함한 배포 버전이 필요합니다.')
         for button in (self.preview_button,self.save_button,self.apply_all_button):
             button.setEnabled(idle and entry is not None)
         self.save_all_button.setVisible(len(self.entries) > 1)
@@ -569,6 +578,25 @@ class MainWindow(QMainWindow):
         if entry and not self.job:
             self.start_job({'mode':'inspect','scene':self.configured(entry)},entry)
 
+    def request_ai_download(self):
+        if not self.job:
+            self.start_job({'mode':'ai_download'})
+
+    def request_ai_preview(self):
+        from desktop.ai_models import runtime_available, model_dir, verify_models
+        entry = self.selected_entry()
+        if not entry or self.job:
+            return
+        if not runtime_available():
+            QMessageBox.information(self,'AI 실행 환경 필요','이 배포본에는 AI 실행 환경이 없습니다. AI 포함 버전을 사용해 주세요. 기본 전처리는 계속 사용할 수 있습니다.')
+            return
+        try:
+            verify_models(model_dir())
+        except ValueError as error:
+            QMessageBox.information(self,'AI 모델 준비',str(error)+'\nAI 모델 받기를 누르면 공식 저장소에서 약 58MB를 받습니다. 영상은 업로드하지 않습니다.')
+            return
+        self.start_job({'mode':'ai_preview','scene':self.configured(entry)},entry)
+
     def request_export(self,all_scenes=False):
         if self.job:
             return
@@ -637,6 +665,15 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage('작업 중지'); self.progress.setValue(0)
         elif state['state'] == 'done':
             self.progress.setValue(100)
+            if state.get('ai_models'):
+                QMessageBox.information(self,'AI 모델 준비 완료','모델 다운로드와 파일 검증을 완료했습니다. AI 비교 미리보기를 실행할 수 있습니다.')
+            if state.get('ai_comparison'):
+                from desktop.native_ai import AIComparisonDialog
+                if hasattr(self,'ai_dialog'):
+                    self.ai_dialog.close(); self.ai_dialog.deleteLater()
+                self.ai_dialog = AIComparisonDialog(state['ai_comparison'],self)
+                self.ai_dialog.show()
+                self.log.appendPlainText('AI 비교 완료: '+state['ai_comparison']['folder'])
             if state.get('input_review'):
                 if hasattr(self,'input_review_dialog'):
                     self.input_review_dialog.close(); self.input_review_dialog.deleteLater()
