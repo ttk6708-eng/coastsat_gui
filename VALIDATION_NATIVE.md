@@ -72,3 +72,12 @@ Noto Sans KR을 포함해 시스템 글꼴 구성에 의존하지 않게 했습�
   download_font.py restores the exact redistributable font, and build_native.py calls it automatically.
 - The AI distribution's EXE launch and packaged real-model worker were also checked separately;
   the bundled model path is used, not a developer cache. Native tests are repeated in that runtime.
+
+## CoastSat zero-probability correction and provenance inspection
+- Added five focused tests for embedded probability NoData=0, real spectral nodata,
+  generic rasters and explicit masks, consistent/conflicting L2A metadata, and PASSED not being correction proof.
+- Native suite: 36 tests; processing suite: six tests. Three selected real scenes only were inspected again.
+- Two zero-probability samples retained more valid pixels without reducing true nodata;
+  the control scene with no probability zeros retained identical cloud and valid percentages.
+- Input TIFF hashes were unchanged. A correction-status Qt screenshot was inspected.
+- Local input imagery, sample reports, machine-specific migration helper, runtimes and models are not published to GitHub.

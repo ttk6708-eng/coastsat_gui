@@ -7,7 +7,8 @@ from pathlib import Path
 import numpy as np
 from osgeo import gdal, osr
 from PIL import Image
-from desktop.processing import open_raster, aligned_band, MAX_PIXELS, NAMES
+from desktop.processing import open_raster, aligned_band, MAX_PIXELS, NAMES, band_validity, probability_zero_policy
+from desktop.correction_status import correction_status
 from desktop.display import stretch_ranges, preview_rgb
 
 
@@ -38,10 +39,13 @@ def review_input(scene, folder):
                 raise ValueError('스케일·오프셋은 유한한 값이어야 합니다.')
             width,height = min(256,ds.RasterXSize),min(256,ds.RasterYSize)
             sample = band.ReadAsArray(buf_xsize=width,buf_ysize=height).astype('float64')
-            valid = band.GetMaskBand().ReadAsArray(buf_xsize=width,buf_ysize=height) != 0
-            valid &= np.isfinite(sample)
+            mask = band.GetMaskBand().ReadAsArray(buf_xsize=width,buf_ysize=height)
+            valid, zero_recovered = band_validity(band, sample, mask, role == '구름 확률' and probability_zero_policy(scene))
             nodata = band.GetNoDataValue()
-            if nodata is not None: valid &= sample != nodata
+            if zero_recovered:
+                issues.append('내장 구름 확률의 0/NoData 충돌을 감지했습니다. 처리 시 영상 밴드가 유효한 영역의 확률 0은 유지합니다. 이 밴드의 표본 통계에는 영상 전체 결측이 아직 결합되지 않았습니다.')
+            if role == '구름 품질정보' and nodata == 0:
+                issues.append('품질정보의 0이 NoData로 지정돼 있습니다. QA60 공백 기간 등과 구별할 근거가 없어 이 0은 임의로 맑음으로 바꾸지 않습니다.')
             values = sample[valid]
             raw_range = [float(values.min()),float(values.max())] if values.size else None
             categorical = role in ('구름 품질정보','구름 확률')
@@ -57,7 +61,7 @@ def review_input(scene, folder):
                 nodata=str(nodata) if nodata is not None else '미지정',sample_count=int(sample.size),
                 sampled_invalid_percent=float(np.mean(~valid)*100),raw_range=raw_range,
                 calibrated_range=[float(corrected.min()),float(corrected.max())] if values.size else None,
-                processing_level=metadata.get('PROCESSING_LEVEL') or metadata.get('processing_level') or '미확인',
+                processing_level=metadata.get('PROCESSING_LEVEL') or metadata.get('processing_level') or metadata.get('PRODUCT_TYPE') or '미확인',
                 processing_baseline=metadata.get('PROCESSING_BASELINE') or '미확인')
             if ds.RasterXSize*ds.RasterYSize > MAX_PIXELS:
                 issues.append(f'{role}: 현재 전처리 한도인 1,200만 픽셀을 초과합니다.')
@@ -114,5 +118,6 @@ def review_input(scene, folder):
             info['preview_path'] = None; info['preview_error'] = '점검 중 입력 파일이 바뀌었습니다. 다시 점검하세요.'
             issues.append(info['preview_error']); break
     info['folder'] = str(out.resolve())
+    info['corrections'] = correction_status(scene, rows)
     (out/'input-review.json').write_text(json.dumps(info,ensure_ascii=False,indent=2),encoding='utf-8')
     return info

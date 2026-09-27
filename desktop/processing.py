@@ -32,7 +32,25 @@ def inspect(path):
             'descriptions': [ds.GetRasterBand(i).GetDescription() for i in range(1, ds.RasterCount + 1)]}
 
 
-def aligned_band(entry, target, nearest=False):
+def probability_zero_policy(scene):
+    """Only the embedded CoastSat S2 probability band has this convention."""
+    bands, probability = scene.get('bands', []), scene.get('probability', {})
+    return bool(scene.get('coastsat') and scene.get('satellite') == 'S2' and len(bands) == 5
+        and int(probability.get('band', 0)) == 5
+        and Path(probability.get('path', '')).resolve() == Path(bands[0]['path']).resolve())
+
+
+def band_validity(band, values, mask, allow_zero_nodata=False):
+    nodata = band.GetNoDataValue()
+    # Ignore only the mask synthesized from NoData=0, never an explicit mask/alpha.
+    recover_zero = allow_zero_nodata and nodata == 0 and band.GetMaskFlags() == gdal.GMF_NODATA
+    valid = np.isfinite(values) & (True if recover_zero else mask != 0)
+    if nodata is not None and not recover_zero:
+        valid &= values != nodata
+    return valid, bool(recover_zero)
+
+
+def aligned_band(entry, target, nearest=False, allow_zero_nodata=False):
     """Warp each band and its validity mask onto the exact target affine grid."""
     src = open_raster(entry['path'])
     if src.RasterXSize * src.RasterYSize > MAX_PIXELS:
@@ -42,11 +60,7 @@ def aligned_band(entry, target, nearest=False):
         raise ValueError(f'{Path(entry["path"]).name}: {index}번 밴드가 없습니다.')
     band = src.GetRasterBand(index)
     values = band.ReadAsArray().astype('float32')
-    valid = band.GetMaskBand().ReadAsArray() != 0
-    valid &= np.isfinite(values)
-    nodata = band.GetNoDataValue()
-    if nodata is not None:
-        valid &= values != nodata
+    valid, _ = band_validity(band, values, band.GetMaskBand().ReadAsArray(), allow_zero_nodata)
     values[~valid] = np.nan
     source = gdal.GetDriverByName('MEM').Create('', src.RasterXSize, src.RasterYSize, 1, gdal.GDT_Float32)
     source.SetGeoTransform(src.GetGeoTransform())
@@ -147,11 +161,14 @@ def compute_scene(scene, allow_empty=False, progress=None):
             raise ValueError('지원하지 않는 구름 마스크 형식입니다.')
         known |= available
     if probability:
-        values = aligned_band(probability, target, nearest=True)
+        recover_zero = probability_zero_policy(scene)
+        values = aligned_band(probability, target, nearest=True, allow_zero_nodata=recover_zero)
         available = np.isfinite(values) & (values >= 0) & (values <= 100)
+        if recover_zero:
+            warnings.append('CoastSat S2 내장 구름 확률: NoData=0 충돌 시 영상 밴드가 유효한 영역의 확률 0은 유효값으로 해석합니다. 별도 마스크와 영상 결측은 유지합니다.')
         from coastsat.SDS_preprocess import create_s2cloudless_mask
         cloud |= create_s2cloudless_mask(np.where(available, values, 0), float(scene.get('cloud_threshold', 40))) & available
-        known |= available
+        known |= available & ~nodata
     if not known.any():
         warnings.append('구름 정보 없음: 구름 제거를 수행하지 않았습니다. 구름 마스크는 255(미확인)입니다.')
     elif np.any(~known & ~nodata) and scene.get('apply_cloud_mask', True):

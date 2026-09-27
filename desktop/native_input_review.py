@@ -44,6 +44,15 @@ class InputReviewDialog(QDialog):
         self.tabs.addTab(overview,'RGB 미리보기 · 점검 결과')
         self.band_details = QPlainTextEdit(); self.band_details.setReadOnly(True)
         self.tabs.addTab(self.band_details,'선택 밴드 상세')
+        self.corrections = QPlainTextEdit(); self.corrections.setReadOnly(True)
+        status = report.get('corrections',{})
+        status_lines = [status.get('note','보정 상태 기록 없음'),'']
+        for row in status.get('rows',[]):
+            status_lines += [row['name']+' · '+row['input_status'], '판단 근거: '+row['evidence'],
+                             '우리 프로그램: '+row['app_action'],'']
+        status_lines += ['입력 근거 기록',*status.get('evidence',[])]
+        self.corrections.setPlainText('\n'.join(status_lines))
+        self.tabs.addTab(self.corrections,'보정 상태 · 판단 근거')
         stat = QLabel(report['statistics_note']); stat.setWordWrap(True); layout.addWidget(stat)
         self.table = QTableWidget(len(report['bands']),7)
         self.table.setHorizontalHeaderLabels(['역할 / 파일 밴드','영상 크기','픽셀 크기','좌표 정렬','표본 결측','적용 scale / offset','상태'])
