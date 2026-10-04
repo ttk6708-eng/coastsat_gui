@@ -195,6 +195,8 @@ def export_reviewed(report, selected, destination):
         if not np.isfinite(coords).all():
             raise ValueError('해안선 좌표 변환에 실패했습니다.')
         features.append({'type':'Feature','properties':{'segment_id':segment['id'],'length_m':segment['length_m'],
+            'source_segment_id':segment.get('source_segment_id',segment['id']),
+            'region_edited':bool(report.get('region_edits')),
             'scene':report['scene']['name'],'review':'user_selected','tide_corrected':False},
             'geometry':{'type':'LineString','coordinates':coords}})
     (root/'shoreline.geojson').write_text(json.dumps({'type':'FeatureCollection','features':features},ensure_ascii=False),encoding='utf-8')

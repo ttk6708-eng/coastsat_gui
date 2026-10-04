@@ -4,8 +4,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,
     QSpinBox,QDialogButtonBox,QPushButton,QComboBox,QListWidget,QListWidgetItem,
     QPlainTextEdit,QFileDialog,QMessageBox)
-from desktop.native_widgets import ImageView
+from desktop.native_region_view import RegionImageView
 from desktop.shoreline import DEFAULTS,draw_overlay,export_reviewed
+from desktop.shoreline_region import clip_region
 
 
 class ShorelineSettingsDialog(QDialog):
@@ -33,28 +34,99 @@ class ShorelineSettingsDialog(QDialog):
 
 class ShorelineReviewDialog(QDialog):
     def __init__(self,report,output,parent=None):
-        super().__init__(parent);self.report=report;self.output=output
+        super().__init__(parent);self.report=report;self.original_report=report;self.output=output;self.undo_stack=[]
         self.setWindowTitle('해안선 후보 확인 · 선택 후 저장');self.resize(1050,850)
         layout=QVBoxLayout(self)
         title=QLabel(report['scene']['name']);title.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(title)
         note=QLabel('분홍선과 숫자: 해안선 후보. 미선택 시 전체 후보를 표시합니다. 확대 확인 후 저장할 선을 체크하세요.');note.setWordWrap(True);layout.addWidget(note)
         self.stage=QComboBox();self.stage.addItems(['① 처리 전 영상','② 모래·포말·물 분류','③ 선택 후보선 겹쳐 보기']);layout.addWidget(self.stage)
         self.stage.currentIndexChanged.connect(self.refresh)
-        row=QHBoxLayout();layout.addLayout(row,1);self.view=ImageView();row.addWidget(self.view,1)
+        tools=QHBoxLayout();layout.addLayout(tools)
+        self.draw_button=QPushButton('해빈 영역 그리기');self.draw_button.clicked.connect(self.begin_region);tools.addWidget(self.draw_button)
+        self.point_undo=QPushButton('마지막 점 취소');self.point_undo.clicked.connect(lambda:self.view.undo_point());tools.addWidget(self.point_undo)
+        self.keep_button=QPushButton('영역 안만 남기기');self.keep_button.clicked.connect(lambda:self.apply_region('keep'));tools.addWidget(self.keep_button)
+        self.exclude_button=QPushButton('영역 안 제외');self.exclude_button.clicked.connect(lambda:self.apply_region('exclude'));tools.addWidget(self.exclude_button)
+        self.cancel_region=QPushButton('그리기 취소');self.cancel_region.clicked.connect(self.cancel_drawing);tools.addWidget(self.cancel_region)
+        history=QHBoxLayout();layout.addLayout(history)
+        self.undo_button=QPushButton('영역 적용 되돌리기');self.undo_button.clicked.connect(self.undo_region);history.addWidget(self.undo_button)
+        self.reset_button=QPushButton('전체 후보 복원');self.reset_button.clicked.connect(self.reset_regions);history.addWidget(self.reset_button)
+        self.region_status=QLabel();self.region_status.setWordWrap(True);history.addWidget(self.region_status,1)
+        self.region_help=QLabel('전체 후보 중 해빈을 둘러싸도록 점을 3개 이상 찍고 적용하세요. 초록 윤곽은 최근 영역이며, 저장 대상은 분홍선입니다.');self.region_help.setWordWrap(True);layout.addWidget(self.region_help)
+        row=QHBoxLayout();layout.addLayout(row,1);self.view=RegionImageView();row.addWidget(self.view,1)
+        self.view.points_changed.connect(self.update_region_controls)
         self.candidates=QListWidget();self.candidates.setMaximumWidth(225);row.addWidget(self.candidates)
-        for segment in report['segments']:
-            item=QListWidgetItem(f"후보 {segment['id']} · {segment['length_m']:.0f} m")
-            item.setData(Qt.ItemDataRole.UserRole,segment['id']);item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked);self.candidates.addItem(item)
+        self.populate_candidates([])
         self.candidates.itemChanged.connect(self.refresh)
-        detail=QPlainTextEdit();detail.setReadOnly(True);detail.setMaximumHeight(170)
-        detail.setPlainText('분류색: 노랑=모래 / 옅은 하늘색=포말 / 파랑=물 / 회색=제외\n'+
-            f"후보 {len(report['segments'])}개 · 임계값 {report['threshold']:.4f}\n"+'\n'.join(report['warnings']))
-        layout.addWidget(detail)
+        self.detail=QPlainTextEdit();self.detail.setReadOnly(True);self.detail.setMaximumHeight(130)
+        layout.addWidget(self.detail)
         bar=QHBoxLayout();layout.addLayout(bar)
         self.save_button=QPushButton('선택한 후보선 확인·저장');self.save_button.clicked.connect(self.save);bar.addWidget(self.save_button)
         close=QPushButton('닫기');close.clicked.connect(self.close);bar.addWidget(close)
         self.stage.setCurrentIndex(2);self.refresh()
+
+    def populate_candidates(self,selected):
+        self.candidates.blockSignals(True);self.candidates.clear()
+        for segment in self.report['segments']:
+            item=QListWidgetItem(f"후보 {segment['id']} · {segment['length_m']:.0f} m")
+            item.setData(Qt.ItemDataRole.UserRole,segment['id']);item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if segment['id'] in selected else Qt.CheckState.Unchecked)
+            self.candidates.addItem(item)
+        self.candidates.blockSignals(False)
+
+    def begin_region(self):
+        self.stage.setCurrentIndex(2)
+        self.view.set_drawing(True,clear=True)
+
+    def restore_polygon(self):
+        edits=self.report.get('region_edits',[])
+        self.view.set_points(edits[-1]['preview_vertices'] if edits else [])
+
+    def cancel_drawing(self):
+        self.view.set_drawing(False)
+        self.restore_polygon()
+
+    def update_region_controls(self):
+        if not hasattr(self,'save_button'):return
+        drawing=self.view.drawing;count=len(self.view.points)
+        self.draw_button.setEnabled(not drawing)
+        self.point_undo.setEnabled(drawing and count>0)
+        self.keep_button.setEnabled(drawing and count>=3)
+        self.exclude_button.setEnabled(drawing and count>=3)
+        self.cancel_region.setEnabled(drawing)
+        self.undo_button.setEnabled(not drawing and bool(self.undo_stack))
+        self.reset_button.setEnabled(not drawing and bool(self.undo_stack))
+        self.save_button.setEnabled(not drawing and bool(self.selected()))
+        edits=len(self.report.get('region_edits',[]))
+        length=sum(s['length_m'] for s in self.report['segments'])
+        self.region_status.setText(f'영역 점 {count}개 · 적용 전(저장 불가)' if drawing else
+                                  f'영역 적용 {edits}회 · 후보 {len(self.report["segments"])}개 · 총 {length:.0f}m')
+
+    def apply_region(self,mode):
+        if not self.view.drawing:return
+        try:
+            result=clip_region(self.report,self.view.points,mode)
+        except (ValueError,KeyError) as error:
+            QMessageBox.warning(self,'영역 확인',str(error));return
+        self.undo_stack.append((self.report,self.selected()))
+        self.report=result
+        self.populate_candidates([s['id'] for s in result['segments']])
+        self.view.set_drawing(False)
+        self.stage.setCurrentIndex(2);self.refresh()
+
+    def undo_region(self):
+        if not self.undo_stack:return
+        self.report,selected=self.undo_stack.pop()
+        self.populate_candidates(selected);self.restore_polygon();self.refresh()
+
+    def reset_regions(self):
+        self.report=self.original_report;self.undo_stack=[]
+        self.populate_candidates([]);self.restore_polygon();self.refresh()
+
+    def reject(self):
+        if self.view.drawing:
+            self.cancel_drawing()
+        else:
+            super().reject()
 
     def selected(self):
         return [self.candidates.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.candidates.count())
@@ -67,9 +139,14 @@ class ShorelineReviewDialog(QDialog):
         draw_overlay(self.report,selected or [s['id'] for s in self.report['segments']],root/'review-overlay.png')
         overlay=['empty.png','classes.png','review-overlay.png'][self.stage.currentIndex()]
         self.view.set_images(root/'original.png',root/overlay)
-        self.save_button.setEnabled(bool(selected))
+        self.detail.setPlainText('분류색: 노랑=모래 / 옅은 하늘색=포말 / 파랑=물 / 회색=제외\n'+
+            f"후보 {len(self.report['segments'])}개 · 임계값 {self.report['threshold']:.4f}\n"+
+            ('영역 선택 후에는 짧은 구간도 유지합니다. 전체 후보에 적용되며 남은 후보는 체크됩니다.\n' if self.report.get('region_edits') else '')+
+            '\n'.join(self.report['warnings']))
+        self.update_region_controls()
 
     def save(self):
+        if self.view.drawing:return
         folder=QFileDialog.getExistingDirectory(self,'해안선 저장 폴더 선택',self.output)
         if not folder:return
         try:
