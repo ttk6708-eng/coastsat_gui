@@ -257,6 +257,9 @@ class MainWindow(QMainWindow):
         ai_note = QLabel('기존 판정과 AI 판정을 비교합니다.\n일반 저장 결과에는 적용하지 않습니다.'); ai_note.setWordWrap(True); ai.addWidget(ai_note)
         self.ai_button = QPushButton('AI 비교 미리보기'); self.ai_button.clicked.connect(self.request_ai_preview); ai.addWidget(self.ai_button)
         self.ai_download_button = QPushButton('AI 모델 받기 · 약 58MB'); self.ai_download_button.clicked.connect(self.request_ai_download); ai.addWidget(self.ai_download_button)
+        shoreline = self.fold(layout,'해안선 추출 · 1단계 시험 기능')
+        shoreline_note=QLabel('CoastSat Sentinel-2 한 장에서 후보선을 추출하고 선택 저장합니다.');shoreline_note.setWordWrap(True);shoreline.addWidget(shoreline_note)
+        self.shoreline_button=QPushButton('해안선 후보 추출·확인');self.shoreline_button.clicked.connect(self.request_shoreline);shoreline.addWidget(self.shoreline_button)
         heading('④ 결과 저장')
         destination = self.fold(layout,'저장 위치 확인·변경')
         self.output = QLineEdit(str(self.root/'results')); self.output.setToolTip(self.output.text()); destination.addWidget(self.output)
@@ -502,6 +505,7 @@ class MainWindow(QMainWindow):
         self.save_all_button.setVisible(len(self.entries) > 1)
         self.save_all_button.setEnabled(idle and bool(self.entries)); self.stop_button.setEnabled(not idle)
         base = entry['base'] if entry else {}
+        self.shoreline_button.setEnabled(idle and bool(base.get('coastsat') and base.get('satellite')=='S2'))
         self.reference_button.setEnabled(idle and entry is not None)
         self.reference_clear.setEnabled(idle and bool(base.get('quality_reference')))
         self.reference_note.setText('기준: '+Path(base['quality_reference']).name if base.get('quality_reference') else '공통 영역 기준 없음')
@@ -586,6 +590,14 @@ class MainWindow(QMainWindow):
                 self.start_job({'mode':'preview','scene':scene,'signature':scene_signature(scene),'preview_context':'native'},entry)
             except Exception as error:
                 self.show_error(error)
+
+    def request_shoreline(self):
+        entry=self.selected_entry()
+        if not entry or self.job:return
+        from desktop.native_shoreline import ShorelineSettingsDialog
+        dialog=ShorelineSettingsDialog(self)
+        if dialog.exec()==QDialog.DialogCode.Accepted:
+            self.start_job({'mode':'shoreline','scene':self.configured(entry),'settings':dialog.settings()},entry)
 
     def choose_quality_reference(self):
         entry=self.selected_entry()
@@ -707,6 +719,13 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage('작업 중지'); self.progress.setValue(0)
         elif state['state'] == 'done':
             self.progress.setValue(100)
+            if state.get('shoreline'):
+                from desktop.native_shoreline import ShorelineReviewDialog
+                if hasattr(self,'shoreline_dialog'):
+                    self.shoreline_dialog.close();self.shoreline_dialog.deleteLater()
+                self.shoreline_dialog=ShorelineReviewDialog(state['shoreline'],self.output.text(),self)
+                self.shoreline_dialog.show()
+                self.log.appendPlainText('해안선 후보 추출 완료 · 후보를 확인하고 선택 저장하세요.')
             if state.get('ai_models'):
                 QMessageBox.information(self,'AI 모델 준비 완료','모델 다운로드와 파일 검증을 완료했습니다. AI 비교 미리보기를 실행할 수 있습니다.')
             if state.get('ai_comparison'):

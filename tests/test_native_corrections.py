@@ -1,4 +1,5 @@
 import copy
+import gc
 from pathlib import Path
 import tempfile
 import unittest
@@ -25,6 +26,7 @@ class CorrectionsTests(unittest.TestCase):
             'probability':{'path':str(self.path),'band':5}}
 
     def tearDown(self):
+        gc.collect()  # GDAL/SWIG objects may form cycles when the full Qt suite is imported.
         self.temp.cleanup()
 
     def test_zero_probability_valid_only_inside_spectral_footprint(self):
@@ -39,11 +41,16 @@ class CorrectionsTests(unittest.TestCase):
         self.scene['coastsat']=False
         out=compute_scene(self.scene)
         self.assertFalse(out['known'].any())
+        out['target']=None  # Release the read handle before reopening this raster for update on Windows.
         ds=gdal.Open(str(self.path),gdal.GA_Update)
         ds.GetRasterBand(5).CreateMaskBand(gdal.GMF_PER_DATASET)
         mask=np.full((32,32),255,dtype='uint8');mask[:,0]=0
         ds.GetRasterBand(5).GetMaskBand().WriteArray(mask);ds=None
-        values=aligned_band(self.scene['probability'],open_raster(self.path),nearest=True,allow_zero_nodata=True)
+        target=open_raster(self.path)
+        try:
+            values=aligned_band(self.scene['probability'],target,nearest=True,allow_zero_nodata=True)
+        finally:
+            target=None
         self.assertTrue(np.isnan(values[:,0]).all())
 
     def test_input_review_explains_zero_conflict_and_unknown_corrections(self):

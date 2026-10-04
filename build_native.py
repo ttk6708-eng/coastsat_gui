@@ -29,6 +29,8 @@ def main():
     shutil.copytree(runtime,out/'env',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
     shutil.copytree(source/'desktop',out/'desktop',ignore=shutil.ignore_patterns('__pycache__','*.pyc','host.py'))
     shutil.copytree(source/'coastsat',out/'coastsat',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+    (out/'classification/models').mkdir(parents=True)
+    shutil.copy2(source/'classification/models/NN_4classes_S2_new.pkl',out/'classification/models/NN_4classes_S2_new.pkl')
     shutil.copytree(source/'assets',out/'assets')
     (out/'tests').mkdir()
     for path in [*(source/'tests').glob('test_native*.py'),source/'tests'/'test_desktop_processing.py']:

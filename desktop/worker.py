@@ -38,6 +38,11 @@ def run(spec_path):
             else:
                 from desktop.ai_preview import compare_ai
                 result = {'ai_comparison':compare_ai(spec['scene'], root/'ai-comparison', model_dir(), ai_progress)}
+        elif mode == 'shoreline':
+            from desktop.shoreline import extract
+            def shoreline_progress(message, fraction):
+                save(status, {'state':'running','message':message,'progress':fraction})
+            result = {'shoreline':extract(spec['scene'], spec.get('settings'), root/'shoreline', shoreline_progress)}
         elif mode == 'inspect':
             from desktop.input_review import review_input
             save(status, {'state':'running','message':'입력 밴드·좌표·보정값 점검 및 구름 제거 전 RGB 생성 중','progress':0})
