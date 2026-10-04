@@ -1,0 +1,25 @@
+name: coastsat-desktop
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - gdal=3.10
+  - numpy<2
+  - geopandas
+  - astropy
+  - matplotlib-base
+  - scikit-image<0.25
+  - scikit-learn
+  - scipy
+  - pandas
+  - pillow
+  - imageio
+  - pytz
+  - requests
+  - earthengine-api
+  - streamlit
+  - conda-pack
+  - pyinstaller
+  - pip
+  - pip:
+      - pywebview
